@@ -11,13 +11,14 @@ import SafariServices
 //custom cell
 //api caller
 
-class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSource {
+class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSource, UISearchBarDelegate{
     
     private let tableView: UITableView = {
         let table = UITableView()
         table.register(UITableView.self, forCellReuseIdentifier: NewsTableViewCell.identifier)
         return table
     }()
+    private var searchVC = UISearchController(searchResultsController: nil)
     private var articles = [Articles]()
     private var viewModels = [NewsTableViewCellViewModel]()
     override func viewDidLoad() {
@@ -25,6 +26,18 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
         title = "News"
         view.backgroundColor = .systemBackground
         
+       fetchTopStories()
+        createSearchBar()
+    }
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        tableView.frame = view.bounds
+    }
+    private func createSearchBar(){
+        navigationItem.searchController = searchVC
+        searchVC.searchBar.delegate = self
+    }
+    private func fetchTopStories(){
         APICaller.shared.getTopStories{ [weak self] result in
         switch result{
         case .success(let articles):
@@ -41,12 +54,6 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
         }
         }
     }
-    override func viewDidLayoutSubviews() {
-        super.viewDidLayoutSubviews()
-        tableView.frame = view.bounds
-    }
-
-    
     func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
         return viewModels.count
     }
@@ -72,6 +79,29 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
     }
     func tableView(_ tableView: UITableView, heightForRowAt indexPath: IndexPath) -> CGFloat {
         return 150
+    }
+    
+    func searchBarSearchButtonClicked(_ searchBar: UISearchBar) {
+        guard let text = searchBar.text, !text.isEmpty else {
+            return
+        }
+        APICaller.shared.search(with: text){ [weak self] result in
+            switch result{
+            case .success(let articles):
+                self?.articles = [Articles]()
+                self?.viewModels = articles.compactMap({
+                    NewsTableViewCellViewModel(title: $0.title, subtitle: $0.description ?? "No description", imageURL: URL(string: $0.urlToImage ?? ""))
+                })
+                DispatchQueue.main.async {
+                    self?.tableView.reloadData()
+                    self?.searchVC.dismiss(animated: true, completion: nil)
+                }
+                break
+            case .failure(let error):
+                print(error)
+            }
+            }
+        print(text)
     }
 }
 
